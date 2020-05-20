@@ -1,0 +1,123 @@
+######################   20.05.2020 #####
+
+install.packages("ggplot2", dependencies = TRUE)
+install.packages("qqplotr")
+install.packages("dplyr")
+install.packages("DescTools", dependencies = TRUE)
+install.packages("FSA")
+install.packages("PMCMRplus")
+install.packages("ggpubr")
+
+
+library("ggplot2")
+library("qqplotr")
+library("dplyr")
+library("DescTools")
+library("FSA")
+library("PMCMRplus")
+
+
+#Import the data
+
+
+DataTable <- read.csv("DataTable.csv")
+
+View(DataTable)
+
+list(DataTable$Treatment)
+colnames(DataTable)
+
+#Designate spray as a categorical factor
+
+DataTable$Treatment<-as.factor(DataTable$Treatment)
+
+
+#Produce descriptive statistics by group
+
+
+DataTable %>% select(Treatment, Score) %>% group_by(Treatment) %>% 
+  summarise(n=n(), 
+            mean=mean(Score, na.rm = TRUE), 
+            sd=sd(Score, na.rm = TRUE),
+            stderr=sd/sqrt(n),
+            LCL = mean - qt(1 - (0.05 / 2), n - 1) * stderr,
+            UCL = mean + qt(1 - (0.05 / 2), n - 1) * stderr,
+            median=median(Score, na.rm = TRUE),
+            min=min(Score, na.rm = TRUE), 
+            max=max(Score, na.rm = TRUE),
+            IQR=IQR(Score, na.rm = TRUE),
+            LCLmed = MedianCI(Score, na.rm=TRUE)[2],
+            UCLmed = MedianCI(Score, na.rm=TRUE)[3])
+
+
+#Produce Boxplots and visually check for outliers
+
+ggplot(DataTable, aes(x = Treatment, y = Score, fill = Treatment)) +
+  stat_boxplot(geom ="errorbar", width = 0.5) +
+  geom_boxplot(fill = "light blue") + 
+  stat_summary(fun.y = mean, geom="point") + 
+  ggtitle("DataTable") + 
+  theme_bw() + theme(legend.position="none")
+
+
+ggsave("DataTable_Boxplot.jpg") 
+
+
+
+
+
+#Test each group for normality
+
+DataTable %>%
+  group_by(Treatment) %>%
+  summarise(W = shapiro.test(Score)$statistic,
+            p.value = shapiro.test(Score)$p.value)
+
+
+
+#Perform QQ plots by group
+
+ggplot(data = DataTable, mapping = aes(sample = Score, color = Treatment, fill = Treatment)) +
+  stat_qq_band(alpha=0.5, conf=0.95, bandType = "pointwise") +
+  stat_qq_line() +
+  stat_qq_point(col="black") +
+  facet_wrap(~ Treatment, scales = "free") +
+  labs(x = "Theoretical Quantiles", y = "Sample Quantiles") + theme_bw() 
+
+
+ggsave("DataTable quartiles Score per Treatment.jpg") 
+
+
+
+#Perform the Kruskal-Wallis test
+
+DataTable <-kruskal.test(Score ~ Treatment, data=DataTable)
+print(DataTable)
+
+#Dunn's Kruskal-Wallis post-hoc test
+
+DataTable <-dunnTest(Score ~ Treatment, data=DataTable, method="holm")
+print(DataTable)
+
+#Dwass, Steel, Critchlow, Fligner post-hoc test
+
+DataTable <- read.csv("DataTable.csv")  # Define data...
+
+
+sink("DataTable_compare_Treatments.txt")
+
+CompareTreatment <-dscfAllPairsTest(Score ~ Treatment, data=DataTable)
+print(CompareTreatment)
+
+sink()
+
+### END of Kruskal-Wallis CODE _v1 08.04.2020 ### Basic code redone by LJSliw ###
+
+
+# Stats club chat #
+
+Suggestion by Alex Piper:
+
+write.csv(output, "output.csv")
+output <- broom::tidy(kruskal.test(Ozone ~ Month, data = airquality))
+write.csv(output, "output.csv")
